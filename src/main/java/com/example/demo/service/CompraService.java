@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -48,18 +49,25 @@ public class CompraService {
                 continue;
             }
 
-            var serieAnual = seriesPorAnio.computeIfAbsent(
-                    compra.fecha().getYear(),
-                    anio -> client.obtenerSerieAnual(unidadCsv, anio));
+            BigDecimal valorUnidad;
 
-            var observacion = serieAnual.serie().stream()
-                    .filter(dato -> dato.fecha() != null
-                            && dato.fecha().toLocalDate().equals(compra.fecha()))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException(
-                            "No hay valor de " + unidadCsv + " para " + compra.fecha()));
+            if ("USD".equals(unidadCsv)) {
+                valorUnidad = client.obtenerValor(
+                        unidadCsv, compra.fecha());
+            } else {
+                var serieAnual = seriesPorAnio.computeIfAbsent(
+                        compra.fecha().getYear(),
+                        anio -> client.obtenerSerieAnual(unidadCsv, anio));
 
-            var valorUnidad = observacion.valor();
+                var observacion = serieAnual.serie().stream()
+                        .filter(dato -> dato.fecha() != null
+                                && dato.fecha().toLocalDate().equals(compra.fecha()))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException(
+                                "No hay valor de " + unidadCsv + " para " + compra.fecha()));
+
+                valorUnidad = observacion.valor();
+            }
 
             if (valorUnidad == null || valorUnidad.signum() <= 0) {
                 throw new IllegalStateException(
