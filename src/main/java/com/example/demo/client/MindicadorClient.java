@@ -13,9 +13,13 @@ public class MindicadorClient {
     private final RestClient restClient;
 
     public MindicadorClient() {
-        this.restClient = RestClient.builder()
+        this(RestClient.builder()
                 .baseUrl("https://mindicador.cl/api")
-                .build();
+                .build());
+    }
+
+    MindicadorClient(RestClient restClient) {
+        this.restClient = restClient;
     }
 
     public BigDecimal obtenerValor(String unidad, LocalDate fecha) {
