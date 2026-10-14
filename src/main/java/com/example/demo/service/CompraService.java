@@ -1,14 +1,17 @@
 package com.example.demo.service;
 
-import com.example.demo.client.MindicadorClient;
-import com.example.demo.dto.CompraResponse;
-import com.example.demo.dto.ComprasUnidadResponse;
-import com.example.demo.repository.CompraRepository;
+import java.util.ArrayList;
+import java.util.HashMap;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.ArrayList;
+import com.example.demo.client.IndicadorResponse;
+import com.example.demo.client.MindicadorClient;
+import com.example.demo.dto.CompraResponse;
+import com.example.demo.dto.ComprasUnidadResponse;
+import com.example.demo.repository.CompraRepository;
 
 @Service
 public class CompraService {
@@ -38,15 +41,30 @@ public class CompraService {
 
         var compras = new ArrayList<CompraResponse>();
         long totalPesos = 0;
+        var seriesPorAnio = new HashMap<Integer, IndicadorResponse>();
 
         for (var compra : repository.leerCompras()) {
             if (!compra.unidad().equals(unidadCsv)) {
                 continue;
             }
 
-            var valorUnidad = client.obtenerValor(
-                    compra.unidad(), compra.fecha());
+            var serieAnual = seriesPorAnio.computeIfAbsent(
+                    compra.fecha().getYear(),
+                    anio -> client.obtenerSerieAnual(unidadCsv, anio));
 
+            var observacion = serieAnual.serie().stream()
+                    .filter(dato -> dato.fecha() != null
+                            && dato.fecha().toLocalDate().equals(compra.fecha()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "No hay valor de " + unidadCsv + " para " + compra.fecha()));
+
+            var valorUnidad = observacion.valor();
+
+            if (valorUnidad == null || valorUnidad.signum() <= 0) {
+                throw new IllegalStateException(
+                        "Valor inválido para " + compra.fecha());
+            }
             long montoPesos = conversionService.convertirAPesos(
                     compra.monto(), valorUnidad);
 
