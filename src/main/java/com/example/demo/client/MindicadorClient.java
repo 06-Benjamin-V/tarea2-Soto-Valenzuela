@@ -11,20 +11,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import com.example.demo.service.UnidadNoSoportadaException;
 import com.example.demo.service.ValorIndicadorNoDisponibleException;
 
 /**
- * Cliente de la API publica de indicadores (mindicador.cl).
+ * Cliente de la API publica de indicadores.
  *
- * Se usa la consulta por fecha: /api/{indicador}/{dd-MM-yyyy}
+ * Para el valor de un dia se usa la consulta por fecha: /api/{indicador}/{dd-MM-yyyy},
  * porque el enunciado exige el valor de la UF o del dolar EN LA FECHA de cada compra.
- * La ruta de resumen (/api/) solo entrega el valor del dia actual.
  *
- * La API publica responde lento o de forma intermitente, por eso se configuran
- * timeouts y algunos reintentos con espera creciente.
+ * El encabezado User-Agent es necesario: sin el, la API responde con error.
+ * Ademas se configuran timeouts y reintentos porque la API responde lento
+ * o de forma intermitente.
  */
 @Component
 public class MindicadorClient {
@@ -54,54 +55,28 @@ public class MindicadorClient {
 
         return RestClient.builder()
                 .baseUrl("https://mindicador.cl/api")
+                .defaultHeader("User-Agent", "Mozilla/5.0")
                 .requestFactory(factory)
                 .build();
     }
 
+    /** Valor del indicador en una fecha puntual. */
     public BigDecimal obtenerValor(String unidad, LocalDate fecha) {
         String indicador = codigoDe(unidad);
 
-        RuntimeException ultimoError = null;
-        for (int intento = 1; intento <= INTENTOS; intento++) {
-            try {
-                return consultar(indicador, fecha);
-            } catch (ValorIndicadorNoDisponibleException e) {
-                ultimoError = e;
-                log.warn("intento {}/{} fallo al consultar {} en {}: {}",
-                        intento, INTENTOS, indicador, fecha, e.getMessage());
-                if (intento < INTENTOS) {
-                    esperar(ESPERA_BASE.multipliedBy(intento));
-                }
-            }
-        }
-        throw ultimoError;
-    }
-
-    private BigDecimal consultar(String indicador, LocalDate fecha) {
-        IndicadorResponse respuesta;
-        try {
-            respuesta = restClient.get()
-                    .uri("/{indicador}/{fecha}", indicador, fecha.format(FORMATO_FECHA))
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, (peticion, respuestaHttp) -> {
-                        throw new ValorIndicadorNoDisponibleException(
-                                "la API respondio " + respuestaHttp.getStatusCode()
-                                        + " para " + indicador + " en " + fecha);
-                    })
-                    .body(IndicadorResponse.class);
-        } catch (ValorIndicadorNoDisponibleException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            throw new ValorIndicadorNoDisponibleException(
-                    "no se pudo consultar el indicador " + indicador + " en " + fecha, e);
-        }
+        IndicadorResponse respuesta = conReintentos(
+                () -> restClient.get()
+                        .uri("/{indicador}/{fecha}", indicador, fecha.format(FORMATO_FECHA))
+                        .retrieve()
+                        .body(IndicadorResponse.class),
+                indicador, fecha);
 
         if (respuesta == null || respuesta.serie() == null || respuesta.serie().isEmpty()) {
             throw new ValorIndicadorNoDisponibleException(
                     "no hay valor de " + indicador + " para la fecha " + fecha);
         }
 
-        var observacion = respuesta.serie().get(0);
+        var observacion = respuesta.serie().getFirst();
 
         if (observacion.fecha() == null
                 || !observacion.fecha().toLocalDate().equals(fecha)
@@ -112,6 +87,57 @@ public class MindicadorClient {
         }
 
         return observacion.valor();
+    }
+
+    /** Serie completa de un anio, para buscar varias fechas con una sola consulta. */
+    public IndicadorResponse obtenerSerieAnual(String unidad, int anio) {
+        String indicador = codigoDe(unidad);
+
+        IndicadorResponse respuesta = conReintentos(
+                () -> restClient.get()
+                        .uri("/{indicador}/{anio}", indicador, anio)
+                        .retrieve()
+                        .body(IndicadorResponse.class),
+                indicador, anio);
+
+        if (respuesta == null || respuesta.serie() == null) {
+            throw new ValorIndicadorNoDisponibleException(
+                    "respuesta invalida para " + indicador + "/" + anio);
+        }
+
+        return respuesta;
+    }
+
+    /**
+     * Ejecuta la consulta reintentando cuando la API falla o no responde a tiempo.
+     * Si se agotan los intentos, el error se propaga y el endpoint responde 502.
+     */
+    private <T> T conReintentos(Consulta<T> consulta, String indicador, Object referencia) {
+        RuntimeException ultimoError = null;
+
+        for (int intento = 1; intento <= INTENTOS; intento++) {
+            try {
+                return consulta.ejecutar();
+            } catch (ResourceAccessException e) {
+                ultimoError = new ValorIndicadorNoDisponibleException(
+                        "no se pudo consultar " + indicador + " en " + referencia, e);
+            } catch (ValorIndicadorNoDisponibleException e) {
+                ultimoError = e;
+            }
+
+            log.warn("intento {}/{} fallo al consultar {} en {}: {}",
+                    intento, INTENTOS, indicador, referencia, ultimoError.getMessage());
+
+            if (intento < INTENTOS) {
+                esperar(ESPERA_BASE.multipliedBy(intento));
+            }
+        }
+        throw ultimoError;
+    }
+
+    @FunctionalInterface
+    private interface Consulta<T> {
+        T ejecutar();
     }
 
     private static void esperar(Duration duracion) {
