@@ -9,7 +9,7 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class MindicadorClient {
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd-mm-yyyy");
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private final RestClient restClient;
 
     public MindicadorClient() {
@@ -26,7 +26,7 @@ public class MindicadorClient {
         };
 
         IndicadorResponse respuesta = restClient.get()
-                .uri("/{indicador]/{fecha}", indicador, fecha.format(FORMATO_FECHA))
+                .uri("/{indicador}/{fecha}", indicador, fecha.format(FORMATO_FECHA))
                 .retrieve()
                 .body(IndicadorResponse.class);
 
