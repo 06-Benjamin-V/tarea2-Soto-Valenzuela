@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: dockerfile
+    image: tarea2:local
+    ports:
+      - "${APP_PORT:-3001}:${APP_PORT:-3001}"
+    environment:
+      APP_PORT: "${APP_PORT:-3001}"
+      CSV_PATH: /app/data/compras.csv
+      APP_ENV: production
+    volumes:
+      - type: bind
+        source: ./compras.csv
+        target: /app/data/compras.csv
+        read_only: true
+        bind:
+          create_host_path: false
