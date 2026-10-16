@@ -13,8 +13,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
-
+  IMAGE_NAME: ghcr.io/06-benjamin-v/tarea2-soto-valenzuela
 jobs:
   # ---------------- 1) TEST ----------------
   test:
@@ -44,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Construir la imagen
-        run: docker build --tag "$IMAGE_NAME:test" .
+        run: docker build -f dockerfile --tag "$IMAGE_NAME:test" .
 
   # ---------------- 3) PUBLISH ----------------
   # Solo en push a main. Publica en GHCR (publica) con los tags latest y SHA corto.
@@ -71,6 +70,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
