@@ -1,0 +1,8 @@
+.git
+target
+.vscode
+.idea
+*.iml
+*.pdf
+HELP.md
+compras.csv

@@ -1,15 +1,13 @@
 package com.example.demo.client;
 
 import java.math.BigDecimal;
-import java.net.http.HttpClient;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -20,10 +18,11 @@ import com.example.demo.service.ValorIndicadorNoDisponibleException;
 /**
  * Cliente de la API publica de indicadores.
  *
- * Para el valor de un dia se usa la consulta por fecha: /api/{indicador}/{dd-MM-yyyy},
- * porque el enunciado exige el valor de la UF o del dolar EN LA FECHA de cada compra.
+ * Para el valor de un dia se usa la consulta por fecha:
+ * /api/{indicador}/{dd-MM-yyyy},
+ * porque el enunciado exige el valor de la UF o del dolar EN LA FECHA de cada
+ * compra.
  *
- * El encabezado User-Agent es necesario: sin el, la API responde con error.
  * Ademas se configuran timeouts y reintentos porque la API responde lento
  * o de forma intermitente.
  */
@@ -47,20 +46,16 @@ public class MindicadorClient {
     }
 
     private static RestClient construirRestClient() {
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
-        factory.setReadTimeout(Duration.ofSeconds(20));
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(10000);
 
         return RestClient.builder()
                 .baseUrl("https://mindicador.cl/api")
-                .defaultHeader("User-Agent", "Mozilla/5.0")
                 .requestFactory(factory)
                 .build();
     }
 
-    /** Valor del indicador en una fecha puntual. */
     public BigDecimal obtenerValor(String unidad, LocalDate fecha) {
         String indicador = codigoDe(unidad);
 
@@ -89,7 +84,6 @@ public class MindicadorClient {
         return observacion.valor();
     }
 
-    /** Serie completa de un anio, para buscar varias fechas con una sola consulta. */
     public IndicadorResponse obtenerSerieAnual(String unidad, int anio) {
         String indicador = codigoDe(unidad);
 
@@ -108,10 +102,6 @@ public class MindicadorClient {
         return respuesta;
     }
 
-    /**
-     * Ejecuta la consulta reintentando cuando la API falla o no responde a tiempo.
-     * Si se agotan los intentos, el error se propaga y el endpoint responde 502.
-     */
     private <T> T conReintentos(Consulta<T> consulta, String indicador, Object referencia) {
         RuntimeException ultimoError = null;
 
@@ -150,7 +140,6 @@ public class MindicadorClient {
         }
     }
 
-    /** Traduce la unidad del CSV al codigo de indicador de la API. */
     public static String codigoDe(String unidad) {
         if (unidad == null) {
             throw new UnidadNoSoportadaException(null);
