@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
@@ -58,5 +59,12 @@ public class CompraRepository {
             throw new UncheckedIOException(
                     "no se puede leer el CSV: " + csvPath, e);
         }
+    }
+
+    /** Devuelve la compra con ese id, o vacio si no existe. */
+    public Optional<Compra> buscarPorId(long id) {
+        return leerCompras().stream()
+                .filter(compra -> compra.id() == id)
+                .findFirst();
     }
 }
