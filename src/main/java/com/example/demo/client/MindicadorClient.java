@@ -17,7 +17,6 @@ public class MindicadorClient {
     public MindicadorClient() {
         this(RestClient.builder()
                 .baseUrl("https://mindicador.cl/api")
-                .defaultHeader("User-Agent", "Mozilla/5.0")// no tengo la menor idea de porque sin esta linea explota, las pruebas que hago en postman
                 .requestFactory(crearRequestFactory())
                 .build());
     }
