@@ -1,5 +1,8 @@
 package com.example.demo.client;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -9,8 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import com.example.demo.service.ValorIndicadorNoDisponibleException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -65,17 +67,22 @@ class MindicadorClientTest {
         servidor.verify();
     }
 
+    /**
+     * Cuando la API responde sin datos, el cliente reintenta tres veces y recien
+     * entonces lanza la excepcion que el endpoint traduce a 502.
+     */
     @Test
     void rechazaUnaFechaSinValorDisponible() {
         servidor.expect(requestTo(
                         "https://mindicador.cl/api/uf/01-09-2026"))
+                .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(
                         """
                         {"codigo": "uf", "serie": []}
                         """,
                         MediaType.APPLICATION_JSON));
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(ValorIndicadorNoDisponibleException.class,
                 () -> client.obtenerValor("UF", LocalDate.of(2026, 9, 1)));
 
         servidor.verify();

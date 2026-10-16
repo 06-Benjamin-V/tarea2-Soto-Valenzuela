@@ -1,11 +1,14 @@
 package com.example.demo.service;
 
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
+import com.example.demo.client.MindicadorClient;
 
 class ConversionServiceTest {
 
@@ -20,14 +23,22 @@ class ConversionServiceTest {
             "1, 100.51, 101",
             "0, 950.50, 0"
     })
-    void convierteAPesosYRedondea(
-            String monto, String valorUnidad, long esperado) {
+    void convierteAPesosYRedondea(String monto, String valorUnidad, long esperado) {
+        long resultado = service.convertirAPesos(new BigDecimal(monto), new BigDecimal(valorUnidad));
 
-        long resultado = service.convertirAPesos(
-                new BigDecimal(monto),
-                new BigDecimal(valorUnidad)
-        );
+        assertThat(resultado).isEqualTo(esperado);
+    }
 
-        assertEquals(esperado, resultado);
+    @ParameterizedTest
+    @CsvSource({"UF, uf", "USD, dolar", "uf, uf", "usd, dolar", " uf , uf"})
+    void traduceLaUnidadAlCodigoDeLaApi(String unidad, String codigoEsperado) {
+        assertThat(MindicadorClient.codigoDe(unidad)).isEqualTo(codigoEsperado);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"EUR", "CLP", "''"})
+    void rechazaUnidadesNoSoportadas(String unidad) {
+        assertThatThrownBy(() -> MindicadorClient.codigoDe(unidad))
+                .isInstanceOf(UnidadNoSoportadaException.class);
     }
 }
